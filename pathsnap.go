@@ -4,34 +4,64 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
-func main() {
-	dir, _ := os.Getwd()
-	snapshotFile := filepath.Join(dir, "snapshot.txt")
-
-	file, err := os.Create(snapshotFile)
+func printTree(path string, prefix string, f *os.File) error {
+	entries, err := os.ReadDir(path)
 	if err != nil {
-		fmt.Println("error creating snapshot file:", err)
-		return
+		return err
 	}
-	defer file.Close()
 
-	filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
+	for i, entry := range entries {
+		connector := "|__ "
+		if i == len(entries)-1 {
+			connector = "|__ "
 		}
-		if !d.IsDir() {
-			info, e := d.Info()
-			if e == nil {
-				fmt.Fprintf(file, "%s | Size: %d bytes | Modified: %s\n",
-					path, info.Size(), info.ModTime().Format("2006-01-02 15:04:05"))
+		line := fmt.Sprintf("%s %s %s\n", prefix, connector, entry.Name())
+		f.WriteString(line)
+
+		if entry.IsDir() {
+			newPrefix := prefix
+			if i == len(entries)-1 {
+				newPrefix += "  "
+			} else {
+				newPrefix += "│  "
 			}
+			printTree(filepath.Join(path, entry.Name()), newPrefix, f)
 		}
-		return nil
-	})
-
-	fmt.Println("Snapshot saved to:", snapshotFile)
+	}
+	return nil
 }
 
-// sampleline: C:\Users\PC\Downloads\folder\SQL-cheat-sheet.pdf | Size: 230259 bytes | Modified: 2025-09-30 18:04:24
+func main() {
+	dir, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Cannot get current directory:", err)
+		return
+	}
+	
+	snapshotFile := fmt.Sprintf("snapshot_%s.txt", time.Now().Format("20060102_150405"))
+	f, err := os.Create(snapshotFile)
+	if err != nil {
+		fmt.Println("cannot create snapshot file:", err)
+		return
+	}
+	defer f.Close()
+	
+	f.WriteString(dir + "\n")
+	printTree(dir, "", f)
+
+	fmt.Println("Directory snapshot saved to: ", snapshotFile)
+}
+
+// C:\Users\PC\Downloads\GoOps
+// |__ Folder1
+// │  |__ one.go
+// |__ Folder2
+// │  |__ two.go
+// |__ one.go
+// |__ pathsnap.go
+// |__ two.go
+// |__ three.go
+// |__ snapshot_20251001_233105.txt
